@@ -1,7 +1,8 @@
 ---
 title: "NBA Exploratory Data Analysis"
 author: "Lana Lee"
-output: pdf_document
+output: pdf
+format: pdf
 ---
 
 ```{r load-package, warning = FALSE, echo = FALSE, message = FALSE}
