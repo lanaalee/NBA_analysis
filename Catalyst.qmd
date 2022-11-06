@@ -1,0 +1,178 @@
+---
+title: "NBA Exploratory Data Analysis"
+author: "Lana Lee"
+output: pdf_document
+---
+
+```{r load-package, warning = FALSE, echo = FALSE, message = FALSE}
+
+library(tidyverse)
+library(knitr)
+library(gridExtra)
+library(broom)
+library(tidymodels)
+library(openintro)
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
+knitr::opts_chunk$set(fig.width=6, fig.height=4)
+
+```
+
+```{r load-data}
+
+nba <- read_csv("data/nba_team_advanced_data.csv")
+
+```
+## Visualizing the Distribution of the Response Variable
+```{r}
+
+ggplot(data = nba, aes(x = Champion)) + 
+  geom_bar() + 
+  scale_x_discrete(labels = c("Y" = "Champion", "N" = "Not Champion")) +
+  labs(x = "Championship Status", title = "Distribution of Champions")
+```
+
+
+## Visualizing the Relationship Between Discrete Variables and the Response Variable
+```{r won-last-bar}
+
+nba_won_last <- nba |>
+  filter(won_last == "Y")
+nba_won_last_3 <- nba |>
+  filter(won_last_3 == "Y")
+
+bar1 <- ggplot(data = nba_won_last, aes(x = Champion)) + 
+  geom_bar() + 
+  scale_x_discrete(labels = c("Y" = "Champion", "N" = "Not Champion")) +
+  labs(
+    title = "Previous Champions
+    Performance
+    (last year)", 
+    x = "Championship Status",
+    y = "Count")
+
+bar2 <- ggplot(data = nba_won_last_3, aes(x = Champion)) + 
+  geom_bar() + 
+  scale_x_discrete(labels = c("Y" = "Champion", "N" = "Not Champion")) +
+  labs(
+    title = "Previous Champions
+    Performance
+    (last 3 years)", 
+    x = "Championship Status",
+    y = "Count")
+
+grid.arrange(bar1, bar2, nrow = 1)
+```
+
+
+## Visualizing the Relative Chance of Winning the Championship
+```{r won-last-relative-bar, fig.width=7}
+rel_won_last <- ggplot(data = nba, aes(x = Champion, fill = won_last)) + 
+  geom_bar(position = "fill") + 
+  scale_x_discrete(labels = c("Y" = "Champion", "N" = "Not Champion")) +
+  labs(
+    title = "Previous Champions
+    Performance
+    (last year)", 
+    x = "Championship Status",
+    y = "Count")
+
+rel_won_last3 <- ggplot(data = nba, aes(x = Champion, fill = won_last_3)) + 
+  geom_bar(position = "fill") + 
+  scale_x_discrete(labels = c("Y" = "Champion", "N" = "Not Champion")) +
+  labs(
+    title = "Previous Champions
+    Performance
+    (last 3 years)", 
+    x = "Championship Status",
+    y = "Count")
+
+grid.arrange(rel_won_last, rel_won_last3, nrow = 1)
+```
+
+## Visualizing the Relationship between the Championship and Potential Predictors
+```{r}
+num_win_box <- ggplot(data = nba, aes(x = Champion, y = W)) + 
+  geom_boxplot() + 
+  scale_x_discrete(labels = c("Y" = "Champion", "N" = "Not Champion")) +
+  labs(x = "Championship Status", y = "Wins", title = "Wins by
+       Champion")
+
+net_rating_box <- ggplot(data = nba, aes(x = Champion, y = NRtg)) + 
+  geom_boxplot() + 
+  scale_x_discrete(labels = c("Y" = "Champion", "N" = "Not Champion")) +
+  labs(x = "Championship Status", y = "Net Rating", title = "Net Rating by
+       Champion")
+
+net_srs_box <- ggplot(data = nba, aes(x = Champion, y = SRS)) + 
+  geom_boxplot() + 
+  scale_x_discrete(labels = c("Y" = "Champion", "N" = "Not Champion")) +
+  labs(x = "Championship Status", y = "Simple Rating System", title = "SRS by
+       Champion")
+
+net_mov_box <- ggplot(data = nba, aes(x = Champion, y = MOV)) + 
+  geom_boxplot() + 
+  scale_x_discrete(labels = c("Y" = "Champion", "N" = "Not Champion")) +
+  labs(x = "Championship Status", y = "MOV", title = "MOV by
+       Champion")
+
+grid.arrange(num_win_box, net_rating_box, net_srs_box, net_mov_box, nrow = 2)
+```
+
+## Creating a log model
+```{r}
+
+#nba <- nba |>
+#  mutate(
+#    Champion_binary = ifelse(Champion == "Y", 1, 0)
+#  )
+
+nba$Champion <- as.factor(nba$Champion)
+
+log_model <- logistic_reg() |>
+  fit(Champion ~ W + MOV + SRS + NRtg, data = nba)
+
+tidy(log_model)
+
+```
+## Predicting Championship for 3 Hypothetical Teams
+```{r}
+
+#define new team
+new <- tibble(W = c(40, 67, 80), MOV = c(2,4,8), SRS = c(-1, 3.5, 5), NRtg = c(2, 5, 9))
+
+new
+
+#use the fitted model to predict the rating for the new team
+predict(log_model, new, type = "prob")
+```
+## Visualizing the Distribution of the Response Variable
+```{r}
+augment(log_model, nba) |>
+  select(Champion, W, SRS, MOV, NRtg, .pred_class) |>
+  ggplot(aes(x = W, y = Champion, color = .pred_class)) +
+  geom_jitter(alpha = 0.5)
+```
+## Predicting the Given Year's Champion using the Predictors in Model
+```{r}
+
+#og data
+trial <- nba |>
+  select(W, MOV, SRS, NRtg)
+
+#use the fitted model to predict the rating for the new team
+trial_output <- predict(log_model, trial, type = "prob")
+
+#team with highest predicted outcome
+predicted_champ <- nba |>
+  filter(
+    trial_output$.pred_Y == max(trial_output$.pred_Y)
+  )
+
+predicted_champ$Team
+print(paste("W:", predicted_champ$W))  
+print(paste("SRS:", predicted_champ$SRS)) 
+print(paste("MOV:", predicted_champ$MOV)) 
+print(paste("NRtg:", predicted_champ$NRtg)) 
+
+```
